@@ -19,7 +19,7 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
         ChatClient chatClient)
     {
         _chatClient = chatClient;
-        _connectionString = "";
+        _connectionString = "Server=localhost,1433;Database=CompanyDatabase;User Id=SA;Password=YourStrong@Passw0rd;";
     }
 
     public async Task<Result<string, Exception>> Handle(
@@ -29,29 +29,30 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
         request.ChatMessages.Add(request.Request);
         const string systemPrompt = @"
         <context>
-        You are a helpful assistant that can search for information in the company storage to create scrum team for project or give information about data in the company storage.
-        You know T-Sql and you can use it to search for information in the company storage.
+        You are a helpful assistant that can search for information in the company storage to create a scrum team for a project or provide information about data in the company storage.
+        You know T-SQL and can use it to search for information in the company storage.
         You need to return the information in the company storage that matches the request.
         </context>
 
         <rules>
         1. Use <think> </think> tags in your answer to include descriptions of your deductions. For each new thought, use the think tags.
-        2. Use <query> </query> tags in your answer to use t-sql query.
+        2. Use <query> </query> tags in your answer to include T-SQL queries.
         3. Use <result> </result> tags in your answer to include the result of your search.
-        4. If Input is not clear. Return in <result> </result> tags that you can't help with that.
-        5. If Input is not related to the company storage like explain how to use T-Sql or find say about some city, etc. Return in <result> </result> tags that you can't help with that.
-        6. You can use the T-Sql language to search for information in the company storage.
-        7. Avabile tables in storage are: [dbo].[Employees], [dbo].[Departments], [dbo].[Projects], [dbo].[Roles], [dbo].[EmployeesProjects]
-        8. You can retrieve Data about how built are tables in storage.
-        9. You can retrieve Data about how built are relations between tables in storage.
-        10. You can retrieve using select statement.
-        11. You can retrieve using join statements.
-        12. You can retrieve using where statements.
-        13. You can retrieve using group by statements.
-        14. You can retrieve using having statements.
-        15. You can retrieve using order by statements.
-        16. You can retrieve using limit statements.
-        17. Is forbidden to use: DELETE, UPDATE, INSERT, ALTER, DROP, CREATE, RENAME, TRUNCATE
+        4. If the input is not clear, return in <result> </result> tags that you can't help with that.
+        5. If the input is not related to the company storage, such as explaining how to use T-SQL or finding information about a city, return in <result> </result> tags that you can't help with that.
+        6. You can use the T-SQL language to search for information in the company storage.
+        7. Available tables in storage are: [dbo].[Employees], [dbo].[Departments], [dbo].[Projects], [dbo].[Roles], [dbo].[EmployeesProjects].
+        8. You can retrieve data about how tables are built in storage.
+        9. You can retrieve data about how relations between tables are built in storage.
+        10. You can retrieve data using SELECT statements.
+        11. You can retrieve data using JOIN statements.
+        12. You can retrieve data using WHERE statements.
+        13. You can retrieve data using GROUP BY statements.
+        14. You can retrieve data using HAVING statements.
+        15. You can retrieve data using ORDER BY statements.
+        16. You can retrieve data using LIMIT statements.
+        17. It is forbidden to use: DELETE, UPDATE, INSERT, ALTER, DROP, CREATE, RENAME, TRUNCATE.
+        18. User can input in English or Polish. If the input is in Polish, the decision to translate and the translation itself should be included in the <think> section.
         </rules>
         ";
         var chatMessages = new List<ChatMessage>()
@@ -63,7 +64,7 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
         var counter = 0;
         var finalResult = "";
         Log.Information("Start searching in company storage");
-
+        const int delay = 5;
         while (!breakLoop)
         {
             var chatCompletion = await _chatClient.CompleteChatAsync(
@@ -105,6 +106,7 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
             }
             counter++;
             breakLoop = counter == request.IterationLimit;
+            Thread.Sleep(TimeSpan.FromSeconds(delay));
         }
 
         return finalResult;
