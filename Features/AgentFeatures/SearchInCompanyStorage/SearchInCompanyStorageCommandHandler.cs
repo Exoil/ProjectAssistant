@@ -16,10 +16,11 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
     private readonly string _connectionString;
 
     public SearchInCompanyStorageCommandHandler(
-        ChatClient chatClient)
+        ChatClient chatClient,
+        IConfiguration configuration)
     {
+        _connectionString = configuration["DbConnectionString"]!;
         _chatClient = chatClient;
-        _connectionString = "Server=localhost,1433;Database=CompanyDatabase;User Id=SA;Password=YourStrong@Passw0rd;";
     }
 
     public async Task<Result<string, Exception>> Handle(
@@ -65,6 +66,8 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
         var finalResult = "";
         Log.Information("Start searching in company storage");
         const int delay = 5;
+        const int retryLimit = 3;
+        var retryCount = 0;
         while (!breakLoop)
         {
             var chatCompletion = await _chatClient.CompleteChatAsync(
@@ -93,9 +96,25 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
             else if (assistantAnswer.Contains("</query>"))
             {
                 Log.Information("Using query to search in company storage");
-                var queryResult  = await ExecuteRequestAsync(assistantAnswer);
-                request.ChatMessages.Add(queryResult);
-                chatMessages.Add(new UserChatMessage(queryResult));
+                try
+                {
+                    var queryResult  = await ExecuteRequestAsync(assistantAnswer);
+                    request.ChatMessages.Add(queryResult);
+                    chatMessages.Add(new UserChatMessage(queryResult));
+                }
+                catch (Exception ex)
+                {
+                    retryCount++;
+                    if (retryCount >= retryLimit)
+                    {
+                        Log.Error("Retry limit reached");
+                        request.ChatMessages.Add(ex.Message);
+                        break;
+                    }
+                    request.ChatMessages.Add(ex.Message);
+                    chatMessages.Add(new UserChatMessage(ex.Message));
+                }
+
             }
             else
             {
@@ -104,6 +123,7 @@ public class SearchInCompanyStorageCommandHandler : IRequestHandler<SearchInComp
                     .ResolveExceptionToReturn(
                         new DomainException("Assistant error", "500", "Assistant error"));
             }
+            request.OnUpdate?.Invoke(); // N
             counter++;
             breakLoop = counter == request.IterationLimit;
             Thread.Sleep(TimeSpan.FromSeconds(delay));
@@ -129,4 +149,8 @@ private async Task<string> ExecuteRequestAsync(string query)
 
 
 
-public record SearchInCompanyStorageCommand(string Request, int IterationLimit, List<string> ChatMessages) : IRequest<Result<string, Exception>>;
+public record SearchInCompanyStorageCommand(
+    string Request, 
+    int IterationLimit, 
+    List<string> ChatMessages, 
+    Action OnUpdate) : IRequest<Result<string, Exception>>;

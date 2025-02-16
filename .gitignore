@@ -147,3 +147,6 @@ Logs
 *.key
 *.pfx
 ProjectAssistant.code-workspace
+# Ignore appsettings files
+appsettings.json
+appsettings.*.json
